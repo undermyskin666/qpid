@@ -1,0 +1,59 @@
+#probe process("qpidd").library("/usr/lib64/libc-2.17.so").function("accept")
+#{
+#    //printf("[%6d] accept: listen=%d \n",pid(), uint_arg(1));
+#}
+
+
+global g_accepts
+
+
+function PrintBuffer(buf:long,size:long)
+%{
+    const char* p = (const char*)STAP_ARG_buf;
+    size_t len = (size_t)STAP_ARG_size;
+    size_t i=0;
+    for (i=1; i <= len; i++) {
+	STAP_PRINTF("%02x",(uint8_t)*p++);
+	if (i==len) { STAP_PRINTF("\n"); }
+	else if (i%16 == 0) { STAP_PRINTF("\n");}
+	else if (i%8 == 0) { STAP_PRINTF("    "); }
+	else { STAP_PRINTF(" "); }
+	
+    }
+%}
+
+probe kernel.function("sys_accept4").return
+{
+    if (execname() == "qpidd" && $return > 0) {
+	g_accepts[$return]=1
+        printf("[%6d] accept: listen=%d  fd=%d\n",pid(),@entry($fd),$return); 
+    }
+}
+
+probe kernel.function("sys_close").return
+{
+    if (execname() == "qpidd" && g_accepts[@entry($fd)] ) 
+    {
+	delete g_accepts[@entry($fd)];
+        printf("[%6d] close fd=%d ret=%d\n",pid(),@entry($fd),$return);
+    }
+}
+
+probe kernel.function("sys_read").return
+{
+    if (execname() == "qpidd" && g_accepts[@entry($fd)]) {
+	if ($return >= 0) {
+	    printf("[%6d] read fd=%d buf=%p count=%d ret=%d\n",pid(),@entry($fd),@entry($buf),@entry($count),$return);
+	    PrintBuffer(@entry($buf),$return);
+	}
+    }
+}
+probe kernel.function("sys_write").return
+{
+    if (execname() == "qpidd" && g_accepts[@entry($fd)]) {
+	if ($return >= 0) {
+	    printf("[%6d] write fd=%d buf=%p count=%d ret=%d\n",pid(),@entry($fd),@entry($buf),@entry($count),$return);
+	    PrintBuffer(@entry($buf),$return);
+	}
+    }
+}
