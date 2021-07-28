@@ -1,0 +1,4 @@
+qpid version is 1.39
+
+stap -I tapset/ -gv qpidd_net.stp
+
