@@ -1,0 +1,16 @@
+
+@define QpidSymsFile %("/github/qpid/systemtap/symbols/lib64/QpidSymbols"%)
+
+function QpidSysBSDSocketToString:string(addr:long)
+{
+    if (addr) {
+        return sprintf("{fd=%d, localname=%s, peername=%s, nonblocking:%d, nodelay=%d}", 
+            @cast(addr, "_qpid_sys_BSDSocket",@QpidSymsFile)->fd,
+            StdStringGet(&@cast(addr, "_qpid_sys_BSDSocket",@QpidSymsFile)->localname),
+            StdStringGet(&@cast(addr, "_qpid_sys_BSDSocket",@QpidSymsFile)->peername),
+            @cast(addr, "_qpid_sys_BSDSocket",@QpidSymsFile)->nonblocking,
+            @cast(addr, "_qpid_sys_BSDSocket",@QpidSymsFile)->nodelay);
+    }
+    return "{}";
+}
+

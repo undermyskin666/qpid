@@ -1,0 +1,3 @@
+
+@define QPIDD %("qpidd"%)
+@define LIBQPIDBROKER %("/usr/local/qpid/lib64/libqpidbroker.so"%)

@@ -1,26 +1,5 @@
-#probe process("qpidd").library("/usr/lib64/libc-2.17.so").function("accept")
-#{
-#    //printf("[%6d] accept: listen=%d \n",pid(), uint_arg(1));
-#}
-
 
 global g_accepts
-
-
-function PrintBuffer(buf:long,size:long)
-%{
-    const char* p = (const char*)STAP_ARG_buf;
-    size_t len = (size_t)STAP_ARG_size;
-    size_t i=0;
-    for (i=1; i <= len; i++) {
-	STAP_PRINTF("%02x",(uint8_t)*p++);
-	if (i==len) { STAP_PRINTF("\n"); }
-	else if (i%16 == 0) { STAP_PRINTF("\n");}
-	else if (i%8 == 0) { STAP_PRINTF("    "); }
-	else { STAP_PRINTF(" "); }
-	
-    }
-%}
 
 probe kernel.function("sys_accept4").return
 {

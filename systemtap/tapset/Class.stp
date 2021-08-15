@@ -1,0 +1,16 @@
+
+function ClassGetVTableName:string(c:long) 
+{
+    if (c == 0) {
+        return "";
+    }
+
+    for (i=0; i <= 16; i++)
+    {
+        name = usymname(user_long(c) - i);
+        if (substr(name,0,2) != "0x") {
+            return name;
+        }
+    }
+    return usymname(user_long(c));
+}

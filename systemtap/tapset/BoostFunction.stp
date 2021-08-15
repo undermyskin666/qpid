@@ -1,0 +1,37 @@
+
+function BoostFunctionalGetVTbl:long(v:long)
+%{
+    void** addr = (void**)STAP_ARG_v;
+    void* vtbl = NULL;
+    if (addr) {
+        vtbl = *addr;
+        if (vtbl) {
+            vtbl = (void*)((long)vtbl & (~((long)0x01)));
+        }
+    }
+    STAP_RETVALUE = (long)vtbl;
+%}
+
+function BoostFunctionalGetVTblName:string(v:long)
+{
+    vtbl = BoostFunctionalGetVTbl(v);
+    return usymname(vtbl);
+}
+
+function BoostFunctionalGetCbName:string(f:long)
+{
+    vtblName = BoostFunctionalGetVTblName(f);
+    if (substr(vtblName,0,2) == "0x") {
+        return sprintf("obj:%p vtbl:%p",f, BoostFunctionalGetVTbl(f));
+    }
+    for (i=0; i < 5; i++)
+    {
+        cb_addr = user_ulong(f+8);
+        cb_name = usymname(cb_addr);
+        if (substr(cb_name,0,2) != "0x") {
+            return cb_name;
+        }
+        f = cb_addr;
+    }
+    return "";
+}

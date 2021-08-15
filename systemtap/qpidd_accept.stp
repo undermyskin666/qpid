@@ -1,0 +1,101 @@
+
+@define QPIDD %("qpidd"%)
+@define LIBQPIDBROKER %("/usr/local/qpid/lib64/libqpidbroker.so"%)
+@define QpiddModuleList %("/usr/local/qpid/sbin/qpidd:/usr/local/qpid/lib64/qpid/daemon/store.so:/usr/local/qpid/lib64/libqpidclient.so.2.0.0:/usr/local/qpid/lib64/libqpidmessaging.so.2.0.0:/usr/local/qpid/lib64/qpid/daemon/ha.so:/usr/local/qpid/lib64/libqpidtypes.so.1.0.0:/usr/local/qpid/lib64/libqpidcommon.so.2.0.0:/usr/local/qpid/lib64/libqpidbroker.so.2.0.0"%)
+@define QpidSymsFile %("/github/qpid/systemtap/symbols/lib64/QpidSymbols"%)
+@define LibQpidCommon %("/usr/local/qpid/lib64/libqpidcommon.so.2.0.0"%)
+
+probe process(@QPIDD).library(@LIBQPIDBROKER).function("registerTransport")
+{
+    printf("[%6d] registerTransport this=%p name=%s acceptor=%p<%s> connector=%p<%s> port=%d\n",
+		    tid(),$this, StdStringGet($name), $a->px, ClassGetVTableName($a->px),
+		    $c->px, ClassGetVTableName($c->px), $p);
+}
+
+
+probe process(@QPIDD).library(@LIBQPIDBROKER).function("Broker::accept")
+{
+    printf("transportMap:[");
+    map  = &$this->transportMap;
+    node = StdMapFirstNode(map);
+    while(node) {
+        key = StdMapNodeGetKey(node);
+        value = StdMapNodeGetValue(node,StdStringSizeOf());
+        accepter = @cast(value,"_qpid_broker_Broker_TransportInfo",@QpidSymsFile)->acceptor->px;
+        connectorFactory = @cast(value,"_qpid_broker_Broker_TransportInfo",@QpidSymsFile)->connectorFactory->px;
+        node = StdMapNodeNextNode(map,node);
+        printf("{name:'%s', transportInfo:{accepter:%p<%s>, connectorFactory:%p<%s>}}",StdStringGet(key),
+                accepter, ClassGetVTableName(accepter),
+                connectorFactory, ClassGetVTableName(connectorFactory)
+              );
+    }
+    printf("]\n");
+}
+
+probe process(@QPIDD).library(@LIBQPIDBROKER).function("qpid::sys::SocketAcceptor::accept")
+{
+    printf("SocketAcceptor, this=%p poller=%p factory=%p<%s>",$this, $poller->px
+            ,$f, ClassGetVTableName($f));
+    printf(" established:%p<%s><%s>",&$this->established,BoostFunctionalGetVTblName(&$this->established),
+           BoostFunctionalGetCbName(&$this->established));
+    printf(" listeners:[");
+    start  = $this->listeners->c_->_M_impl->_M_start;
+    finish = $this->listeners->c_->_M_impl->_M_finish;
+    while(start < finish) {
+        printf("{%p<%s>, fd:%d localname:'%s' nonblocking:%d nodelay:%d}",(user_ulong(start)),
+                ClassGetVTableName(user_ulong(start)),
+                @cast(user_ulong(start),"_qpid_sys_BSDSocket", @QpidSymsFile)->fd,
+                StdStringGet(&@cast(user_ulong(start),"_qpid_sys_BSDSocket", @QpidSymsFile)->localname),
+                @cast(user_ulong(start),"_qpid_sys_BSDSocket", @QpidSymsFile)->nonblocking,
+                @cast(user_ulong(start),"_qpid_sys_BSDSocket", @QpidSymsFile)->nodelay);
+        if (finish - start > 8) {
+            printf(", ");
+        }
+        start += 8;
+    }
+    printf("]");
+
+    printf("\n");
+}
+
+
+
+
+probe process(@QPIDD).library(@LIBQPIDBROKER).function("qpid::sys::SocketAcceptor::accept").return
+{
+    printf("SocketAcceptor exit. acceptors: [");
+    acceptors = @entry(&$this->acceptors);
+    start  = @cast(acceptors, "_boost_ptr_vector",@QpidSymsFile)->_M_start;
+    finish = @cast(acceptors, "_boost_ptr_vector",@QpidSymsFile)->_M_finish;
+    while(start < finish) {
+        printf("{%p<%s>}",user_ulong(start),ClassGetVTableName(user_ulong(start)));
+        if (finish - start > 8) {
+            printf(", ");
+        }
+        start += 8;
+    }
+    printf("]");
+    printf("\n");
+}
+
+
+probe process(@QPIDD).library(@LibQpidCommon).function("qpid::sys::posix::AsynchAcceptor::start")
+{
+    printf("AsynchAcceptor::start. socket=%p poller=%p \n",&$this->socket,$poller->px);
+}
+
+probe process(@QPIDD).library(@LibQpidCommon).function("qpid::sys::posix::AsynchAcceptor::readable")
+{
+    printf("AsynchAcceptor::readable, acceptedCallback:%p<%s><%s>\n",
+            &$this->acceptedCallback, BoostFunctionalGetVTblName(&$this->acceptedCallback),
+            BoostFunctionalGetCbName(&$this->acceptedCallback));
+}
+
+
+probe process(@QPIDD).library(@LibQpidCommon).function("qpid::sys::BSDSocket::accept").return
+{
+    printf("BSDSocket::accept. listensocket:%s, retsocket:%s\n",QpidSysBSDSocketToString(@entry($this)),
+            QpidSysBSDSocketToString($return));
+}
+
+

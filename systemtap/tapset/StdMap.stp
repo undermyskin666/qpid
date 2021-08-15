@@ -1,0 +1,80 @@
+%{
+    struct std_map_node_base
+    {
+        const char* _M_color;
+        struct std_map_node_base* _M_parent;
+        struct std_map_node_base* _M_left;
+        struct std_map_node_base* _M_right;
+    };
+
+    struct std_map
+    {
+        void* _M_key_compare;
+        struct std_map_node_base _M_header;
+        unsigned long long _M_node_count;
+    };
+%}
+
+function StdMapSize:long(map:long)
+%{
+    struct std_map* stdMap = (struct std_map*)STAP_ARG_map;
+    STAP_RETVALUE = (long)stdMap->_M_node_count;
+%}
+function StdMapFirstNode:long(map:long)
+%{
+    struct std_map* stdMap = (struct std_map*)STAP_ARG_map;
+    STAP_RETVALUE = (long)stdMap->_M_header._M_left;
+%}
+function StdMapNodeHasNext:long(map:long,node:long)
+%{
+    STAP_RETVALUE = StdMapNodeNextNode(STAP_ARG_map, STAP_ARG_node);
+%}
+function StdMapNodeNextNode:long(map:long,node:long)
+%{
+    struct std_map* stdMap = (struct std_map*)STAP_ARG_map;
+    struct std_map_node_base* mapNode = (struct std_map_node_base*)STAP_ARG_node;
+    struct std_map_node_base* nextNode = NULL;
+    if (mapNode && mapNode != stdMap->_M_header._M_right) {
+        if (mapNode->_M_right) {
+            nextNode = mapNode->_M_right;
+            while(nextNode->_M_left) nextNode = nextNode->_M_left;
+        }
+        else if (mapNode->_M_parent->_M_left == mapNode) {
+            if (mapNode->_M_parent != (&stdMap->_M_header)) {
+                nextNode = mapNode->_M_parent;
+            }
+        }
+        else {
+            while(mapNode != (&stdMap->_M_header)) {
+                if (mapNode->_M_parent->_M_left == mapNode) {
+                    if (mapNode->_M_parent != (&stdMap->_M_header)) {
+                        nextNode = mapNode->_M_parent;
+                    }
+                    break;
+                }
+                else {
+                    mapNode = mapNode->_M_parent;
+                }
+            }
+        }
+    }
+    STAP_RETVALUE = (long)nextNode;
+%}
+function StdMapNodeGetKey:long(node:long)
+%{
+    struct std_map_node_base* mapNode = (struct std_map_node_base*)STAP_ARG_node;
+    STAP_RETVALUE = 0;
+    if (mapNode) {
+        STAP_RETVALUE = ((long)mapNode) + sizeof(struct std_map_node_base);
+    }
+%}
+function StdMapNodeGetValue:long(node:long, keyLen:long)
+%{
+    struct std_map_node_base* node = (struct std_map_node_base*)STAP_ARG_node;
+    long keyLen = (long)STAP_ARG_keyLen;
+    keyLen = ((keyLen + 8 - 1)/8)*8;
+    STAP_RETVALUE = 0;
+    if (node) {
+        STAP_RETVALUE = ((long)node) + sizeof(struct std_map_node_base) + keyLen;
+    }
+%}

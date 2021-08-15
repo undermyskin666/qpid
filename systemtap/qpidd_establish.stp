@@ -1,0 +1,23 @@
+
+@define QPIDD %("qpidd"%)
+@define LIBQPIDBROKER %("/usr/local/qpid/lib64/libqpidbroker.so"%)
+@define QpiddModuleList %("/usr/local/qpid/sbin/qpidd:/usr/local/qpid/lib64/qpid/daemon/store.so:/usr/local/qpid/lib64/libqpidclient.so.2.0.0:/usr/local/qpid/lib64/libqpidmessaging.so.2.0.0:/usr/local/qpid/lib64/qpid/daemon/ha.so:/usr/local/qpid/lib64/libqpidtypes.so.1.0.0:/usr/local/qpid/lib64/libqpidcommon.so.2.0.0:/usr/local/qpid/lib64/libqpidbroker.so.2.0.0"%)
+@define QpidSymsFile %("/github/qpid/systemtap/symbols/lib64/QpidSymbols"%)
+@define LibQpidCommon %("/usr/local/qpid/lib64/libqpidcommon.so.2.0.0"%)
+
+
+probe process(@QPIDD).library(@LibQpidCommon).function("qpid::sys::posix::AsynchAcceptor::readable")
+{
+    printf("AsynchAcceptor::readable, acceptedCallback:%p<%s><%s>\n",
+            &$this->acceptedCallback, BoostFunctionalGetVTblName(&$this->acceptedCallback),
+            BoostFunctionalGetCbName(&$this->acceptedCallback));
+}
+
+
+probe process(@QPIDD).library(@LibQpidCommon).function("qpid::sys::BSDSocket::accept").return
+{
+    printf("BSDSocket::accept. listensocket:%s, retsocket:%s\n",QpidSysBSDSocketToString(@entry($this)),
+            QpidSysBSDSocketToString($return));
+}
+
+

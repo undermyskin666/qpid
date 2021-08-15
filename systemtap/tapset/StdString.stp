@@ -1,0 +1,16 @@
+
+function StdStringGet:string(_str:long)
+%{
+    const char** p = (const char**)STAP_ARG__str;
+    const char* str = *p;
+    
+    if (str == NULL) {
+        str="";
+    }
+    snprintf(STAP_RETVALUE,MAXSTRINGLEN,"%s", str);
+%}
+function StdStringSizeOf:long()
+{
+    return 8;
+}
+

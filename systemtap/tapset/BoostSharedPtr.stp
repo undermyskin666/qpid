@@ -1,0 +1,5 @@
+function BoostSharedPtrGet:long(_p:long)
+%{
+    void* p = *(void**)STAP_ARG__p;
+    STAP_RETVALUE=(long)p;
+%}
