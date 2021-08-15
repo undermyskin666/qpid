@@ -1,4 +1,12 @@
 qpid version is 1.39
 
-stap -I tapset/ -gv qpidd_net.stp
+system info:
+'''
+[root@localhost systemtap]# uname -r
+3.10.0-1160.el7.x86_64
+[root@localhost systemtap]# uname -a
+Linux localhost.localdomain 3.10.0-1160.el7.x86_64 #1 SMP Mon Oct 19 16:18:59 UTC 2020 x86_64 x86_64 x86_64 GNU/Linux
+'''
+
+./Stap qpidd_net.stp
 

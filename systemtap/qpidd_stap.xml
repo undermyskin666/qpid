@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+<qpid>
+<file type="binary"  name="qpidd"         path="/usr/local/qpid/sbin/qpidd"></file>
+<file type="library" name="qpidstore"     path="/usr/local/qpid/lib64/qpid/daemon/store.so"></file>
+<file type="library" name="qpidclient"    path="/usr/local/qpid/lib64/libqpidclient.so.2.0.0"></file>
+<file type="library" name="qpidmessaging" path="/usr/local/qpid/lib64/libqpidmessaging.so.2.0.0"></file>
+<file type="library" name="qpidha"        path="/usr/local/qpid/lib64/qpid/daemon/ha.so"></file>
+<file type="library" name="qpidtypes"     path="/usr/local/qpid/lib64/libqpidtypes.so.1.0.0"></file>
+<file type="library" name="qpidcommon"    path="/usr/local/qpid/lib64/libqpidcommon.so.2.0.0"></file>
+<file type="library" name="qpidbroker"    path="/usr/local/qpid/lib64/libqpidbroker.so.2.0.0"></file>
+<unwind_file name="pthread" path="/usr/lib64/libpthread-2.17.so"></unwind_file>
+</qpid>
+</root>
