@@ -1,23 +1,105 @@
 
 @define QPIDD %("qpidd"%)
-@define LIBQPIDBROKER %("/usr/local/qpid/lib64/libqpidbroker.so"%)
 @define QpiddModuleList %("/usr/local/qpid/sbin/qpidd:/usr/local/qpid/lib64/qpid/daemon/store.so:/usr/local/qpid/lib64/libqpidclient.so.2.0.0:/usr/local/qpid/lib64/libqpidmessaging.so.2.0.0:/usr/local/qpid/lib64/qpid/daemon/ha.so:/usr/local/qpid/lib64/libqpidtypes.so.1.0.0:/usr/local/qpid/lib64/libqpidcommon.so.2.0.0:/usr/local/qpid/lib64/libqpidbroker.so.2.0.0"%)
 @define QpidSymsFile %("/github/qpid/systemtap/symbols/lib64/QpidSymbols"%)
 @define LibQpidCommon %("/usr/local/qpid/lib64/libqpidcommon.so.2.0.0"%)
+@define LibQpidBroker %("/usr/local/qpid/lib64/libqpidbroker.so"%)
+
 
 
 probe process(@QPIDD).library(@LibQpidCommon).function("qpid::sys::posix::AsynchAcceptor::readable")
 {
-    printf("AsynchAcceptor::readable, acceptedCallback:%p<%s><%s>\n",
+    QLogPrefix("qpid::sys::posix::AsynchAcceptor::readable");
+    QLog(sprintf("acceptedCallback:%p<%s><%s>\n",
             &$this->acceptedCallback, BoostFunctionalGetVTblName(&$this->acceptedCallback),
-            BoostFunctionalGetCbName(&$this->acceptedCallback));
+            BoostFunctionalGetCbName(&$this->acceptedCallback)));
+    QLogEnd();
 }
 
 
 probe process(@QPIDD).library(@LibQpidCommon).function("qpid::sys::BSDSocket::accept").return
 {
-    printf("BSDSocket::accept. listensocket:%s, retsocket:%s\n",QpidSysBSDSocketToString(@entry($this)),
-            QpidSysBSDSocketToString($return));
+    QLogPrefix("qpid::sys::BSDSocket::accept");
+    QLog(sprintf("listensocket:%s, retsocket:%s\n",QpidSysBSDSocketToString(@entry($this)),
+            QpidSysBSDSocketToString($return)));
+    QLogEnd();
 }
 
+
+probe process(@QPIDD).library(@LibQpidBroker).function("qpid::sys::::establishedIncoming")
+{
+    QLogPrefix("qpid::sys::(anonymous namespace)::establishedIncoming");
+    QLog(sprintf("poller=%p opts=%s timer=%p socket=%s f=%p[%s]",
+                $poller->px,QpidSysSocketTransportOptionsToString($opts),$timer, 
+                QpidSysBSDSocketToString($s),$f,ClassGetVTableName($f)));
+    QLogEnd();
+}
+
+probe process(@QPIDD).library(@LibQpidCommon).function("qpid::sys::AsynchIOHandler::readbuff")
+{
+    QLogPrefix("AsynchIOHandler::readbuff");
+    QLog(sprintf("readError:%d, id:%s, buf:{bytes:%p, dataStart:%d, dataCount:%d",
+                $this->readError,StdStringGet(&$this->identifier),
+                $buff->bytes, $buff->dataStart, $buff->dataCount));
+    if ($this->codec) {
+        QLog(sprintf(" ,codec:%p<%s>",$this->codec,ClassGetVTableName($this->codec)));
+    }
+    else {
+        QLog(sprintf(" ,factory:%p<%s>",$this->factory, ClassGetVTableName($this->factory)));
+    }
+    QLogEnd();
+}
+
+
+probe process(@QPIDD).library(@LibQpidCommon).function("qpid::sys::AsynchIOHandler::eof")
+{
+    QLogPrefix("AsynchIOHandler::eof");
+    QLog(sprintf("id:%s, aio:%p<%s>",StdStringGet(&$this->identifier),$a,ClassGetVTableName($a)));
+    QLogEnd();
+}
+
+
+probe process(@QPIDD).library(@LibQpidCommon).function("qpid::sys::AsynchIOHandler::disconnect")
+{
+    QLogPrefix("qpid::sys::AsynchIOHandler::disconnect");
+    QLog(sprintf("id:%s, codec:%p",StdStringGet(&$this->identifier), $this->codec));
+    QLogEnd();
+}
+
+
+probe process(@QPIDD).library(@LibQpidCommon).function("qpid::sys::AsynchIOHandler::closedSocket")
+{
+    QLogPrefix("qpid::sys::AsynchIOHandler::closedSocket");
+    QLog(sprintf("id:%s, s:%s, aio:%p<%s> codec:%s",StdStringGet(&$this->identifier), QpidSysBSDSocketToString($s), 
+                $this->aio, ClassGetVTableName($this->aio),
+                QpidSysConnectionCodecToString($this->codec)));
+    QLogEnd();
+}
+
+
+probe process(@QPIDD).library(@LibQpidCommon).function("qpid::sys::AsynchIOHandler::idle")
+{
+    QLogPrefix("qpid::sys::AsynchIOHandler::idle");
+    QLog(sprintf("id:%s, headerSent:%d, codec:%p",StdStringGet(&$this->identifier),$this->headerSent,$this->codec));
+    QLogEnd();
+}
+
+probe process(@QPIDD).library(@LibQpidCommon).function("qpid::sys::AsynchIOHandler::nobuffs")
+{
+    QLogPrefix("qpid::sys::AsynchIOHandler::nobuffs");
+    QLogEnd();
+}
+
+
+probe process(@QPIDD).library(@LibQpidBroker).function("qpid::broker::ProtocolRegistry::create").return
+{
+    QLogPrefix("qpid::broker::ProtocolRegistry::create");
+    QLog(sprintf("outputcontrol:%p<%s>, id:'%s'",
+                @entry($o), ClassGetVTableName(@entry($o)),
+                StdStringGet(@entry($id))));
+    QLog(sprintf(", securitysetting:{ssf:%d, authid:'%s', nodict:%d}", 
+                @entry($s->ssf),StdStringGet(@entry(&$s->authid)), @entry($s->nodict)));
+    QLog(sprintf("connectioncodec:%p<%s>",$return, ClassGetVTableName($return)));
+    QLogEnd();
+}
 

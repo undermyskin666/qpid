@@ -1,0 +1,66 @@
+@define QpidSymsFile %("/github/qpid/systemtap/symbols/lib64/QpidSymbols"%)
+
+function QpidSysBSDSocketToString:string(addr:long)
+{
+    if (addr) {
+        return sprintf("{fd=%d, localname=%s, peername=%s, nonblocking:%d, nodelay=%d}", 
+            @cast(addr, "_qpid_sys_BSDSocket",@QpidSymsFile)->fd,
+            StdStringGet(&@cast(addr, "_qpid_sys_BSDSocket",@QpidSymsFile)->localname),
+            StdStringGet(&@cast(addr, "_qpid_sys_BSDSocket",@QpidSymsFile)->peername),
+            @cast(addr, "_qpid_sys_BSDSocket",@QpidSymsFile)->nonblocking,
+            @cast(addr, "_qpid_sys_BSDSocket",@QpidSymsFile)->nodelay);
+    }
+    return "{}";
+}
+function QpidSysBSDSocketGetFd:long(addr:long)
+{
+    if (addr) {
+        return @cast(addr, "_qpid_sys_BSDSocket",@QpidSymsFile)->fd;
+    }
+    return -1;
+}
+
+function QpidSysSocketTransportOptionsToString:string(t:long)
+{
+    if (t) {
+    opts = @cast(t,"_qpid_sys_SocketTransportOptions",@QpidSymsFile);
+        return sprintf("{tcpNoDelay:%d, nodict:%d, maxNegotiateTime:%d}",
+                @cast(t,"_qpid_sys_SocketTransportOptions",@QpidSymsFile)->tcpNoDelay, 
+                @cast(t,"_qpid_sys_SocketTransportOptions",@QpidSymsFile)->nodict, 
+                @cast(t,"_qpid_sys_SocketTransportOptions",@QpidSymsFile)->maxNegotiateTime);
+    }
+    return sprintf("{}");
+}
+
+function QpidSysSecureConnectionToString:string(codec:long)
+{
+    if (codec) {
+        secured       = @cast(codec, "_qpid_sys_SecureConnection",@QpidSymsFile)->secured;
+        childcodec    = @cast(codec, "_qpid_sys_SecureConnection",@QpidSymsFile)->codec->_M_ptr;
+        securityLayer = @cast(codec, "_qpid_sys_SecureConnection",@QpidSymsFile)->securityLayer->_M_ptr;
+        if (secured) {
+            return sprintf("{securityLayer:%p<%s>}",securityLayer,ClassGetVTableName(securityLayer));
+        }
+        else {
+            return sprintf("{codec:%p<%s>",childcodec, ClassGetVTableName(childcodec));
+        }
+    }
+    return "{}";
+}
+
+function QpidSysConnectionCodecToString:string(codec:long)
+{
+    if (codec) {
+        vtbl = ClassGetVTableName(codec);
+        if (isinstr(vtbl,"SecureConnection")) {
+            return QpidSysSecureConnectionToString(codec);
+        }
+        else {
+            return sprintf("{vtable:<%s>}",vtbl);
+        }
+    }
+    return "{}";
+}
+
+
+

@@ -36,7 +36,8 @@ def main(argv=None):
     cmd = "stap ";
     for unwindFile in config._unwindSymbolFiles:
         cmd += " -d " + unwindFile["path"];
-    cmd += " -I tapset/"
+    cmd += " -I tapset/";
+    cmd += " -DMAXACTION=102400";
     args = len(argv)
     for i in range(1,args-1):
         cmd += " " + argv[i]

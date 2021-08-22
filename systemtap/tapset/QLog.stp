@@ -1,0 +1,33 @@
+global g_qlog_messages;
+
+function QLog(msg:string)
+{
+    pid = tid();
+    g_qlog_messages[pid] .= sprintf("%s",msg);
+}
+function QLogPrefix(funcname:string) 
+{
+    QLog(sprintf("[pid:%d][tid:%d][timestamp:%d][func:%s]: ",pid(),tid(),gettimeofday_us(),funcname));
+}
+
+function QLogEnd()
+{
+    pid = tid();
+    len = strlen(g_qlog_messages[pid]);
+    msg = g_qlog_messages[pid];
+    off = 0;
+    substrlen = 512;
+    while(off < len) {
+        substr = substr(msg,off,substrlen);
+        if (off != 0) {
+            printf("[tid:%d]%s\n",pid,substr);
+        }
+        else {
+            printf("%s\n",substr);
+        }
+        off += substrlen;
+    }
+    delete g_qlog_messages[pid];
+}
+
+

@@ -1,0 +1,503 @@
+
+@define QpidSymsFile %("/github/qpid/systemtap/symbols/lib64/QpidSymbols"%)
+
+@define QpidFramingDecodeStringSplitLengthValue(instring,length,value) %(
+    ___offset = strpos(@instring,",");
+    if (___offset <= 0 || ___offset >= strlen(@instring)) {
+        printf("QpidFramingStringSplitLengthValue failed. instring:%s",@instring);
+        exit();
+    }
+    @length = strtol(substr(@instring, 0, ___offset),10);
+    @value  = substr(@instring,___offset+1, strlen(@instring) - ___offset);
+%)
+
+@define QpidFramingDecodeStringSetLengthValue(outstring,length,value) %(
+    @outstring = sprintf("%d,%s",@length, @value);
+%)
+
+
+@define QpidFramingBufferReadUint8(buffer,buffersize,value) %(
+    if (@buffersize < 1) {
+        printf("[fatal]qpidframingbufferreaduint8 failed.\n");
+        exit();
+    }
+    @value      = user_uint8(@buffer);
+    @buffer     += 1;
+    @buffersize -= 1;
+%)
+
+@define QpidFramingBufferReadUint16(buffer,buffersize,value) %(
+    if (@buffersize < 2) {
+        printf("[fatal]qpidframingbufferreaduint16 failed.\n");
+        exit();
+    }
+    @value = user_uint8(@buffer);
+    for (i=1; i < 2; i++) {
+        @value <<=8;
+        @value |= user_uint8(@buffer+i); 
+    }
+    @buffer     += 2;
+    @buffersize -= 2;
+%)
+
+
+@define QpidFramingBufferReadUint32(buffer,buffersize,value) %(
+    if (@buffersize < 4) {
+        printf("[fatal]qpidframingbufferreaduint32 failed.\n");
+        exit();
+    }
+    @value = user_uint8(@buffer);
+    for (i=1; i < 4; i++) {
+        @value <<=8;
+        @value |= user_uint8(@buffer+i); 
+    }
+    @buffer     += 4;
+    @buffersize -= 4;
+%)
+
+@define QpidFramingBufferReadUint64(buffer,buffersize,value) %(
+    if (@buffersize < 8) {
+        printf("[fatal]qpidframingbufferreaduint64 failed.\n");
+        exit();
+    }
+    @value = user_uint8(@buffer);
+    for (i=1; i < 8; i++) {
+        @value <<=8;
+        @value |= user_uint8(@buffer+i); 
+    };
+    @buffer     += 8;
+    @buffersize -= 8;
+%)
+
+@define QpidFramingBufferReadShortString(buffer,buffersize,value) %(
+    if (@buffersize < 1) {
+        printf("[fatal]QpidFramingBufferReadShortString failed.\n");
+        exit();
+    }
+    ___tmp      = user_uint8(@buffer);
+    @buffer     += 1;
+    @buffersize -= 1;
+    if (@buffersize < ___tmp) {
+        printf("[fatal]QpidFramingBufferReadShortString failed.\n");
+        exit();
+    }
+    @value      = user_string_n(@buffer,___tmp);
+    @buffer     += ___tmp;
+    @buffersize -= ___tmp;
+%)
+
+@define QpidFramingBufferReadMediaString(buffer,buffersize,value) %(
+    if (@buffersize < 2) {
+        printf("[fatal]QpidFramingBufferReadMediaString failed.\n");
+        exit();
+    }
+    ___tmp      = user_uint8(@buffer);
+    for (i=1; i < 2; i++) {
+        ___tmp <<= 8;
+        ___tmp |=  user_uint8(@buffer + i);
+    }
+    @buffer     += 2;
+    @buffersize -= 2;
+    if (@buffersize < ___tmp) {
+        printf("[fatal]QpidFramingBufferReadMediaString failed.\n");
+        exit();
+    }
+    @value      = user_string_n(@buffer,___tmp);
+    @buffer     += ___tmp;
+    @buffersize -= ___tmp;
+%)
+
+@define QpidFramingBufferReadLongString(buffer,buffersize,value) %(
+    if (@buffersize < 4) {
+        printf("[fatal]QpidFramingBufferReadLongString failed.\n");
+        exit();
+    }
+    ___tmp      = user_uint8(@buffer);
+    for (i=1; i < 4; i++) {
+        ___tmp <<= 8;
+        ___tmp |=  user_uint8(@buffer + i);
+    }
+    @buffer     += 4;
+    @buffersize -= 4;
+    if (@buffersize < ___tmp) {
+        printf("[fatal]QpidFramingBufferReadLongString failed.\n");
+        exit();
+    }
+    @value      = user_string_n(@buffer,___tmp);
+    @buffer     += ___tmp;
+    @buffersize -= ___tmp;
+%)
+
+private function QpidFramingFixedWidthValueDecodeFromBuffer:string(buffer:long,bufferlen:long,width:long) 
+{
+    if (bufferlen <width) {
+        printf("QpidFramingFixedWidthValueDecodeFromBuffer overflow.\n");
+        exit();
+    }
+    value = "";
+    for (i=0; i < width; ++i) {
+        value .= sprintf("%02x",user_uint8(buffer+i));
+    }
+    @QpidFramingDecodeStringSetLengthValue(_ret,width, value);
+    return _ret;
+}
+private function QpidFramingFieldValueDecodeFromBuffer:string(buffer:long,bufferlen:long) 
+{
+    @QpidFramingBufferReadUint8(buffer,bufferlen,type);
+    decodestring = QpidFramingFieldValueDataDecodeFromBuffer(buffer,bufferlen,type);
+    @QpidFramingDecodeStringSplitLengthValue(decodestring, length,value)
+    @QpidFramingDecodeStringSetLengthValue(_ret, (length+1), value);
+    return _ret;
+}
+
+private function QpidFramingNumericFixedWidthValueDecodeFromBuffer:string(buffer:long,buffersize:long,width:long,kind:long)
+{
+    if (width == 0 || buffersize < width) {
+        printf("QpidFramingNumericFixedWidthValueDecodeFromBuffer overflow.\n");
+        exit();
+    }
+    if (kind > 3 || kind <= 0) {
+        printf("QpidFramingNumericFixedWidthValueDecodeFromBuffer. kind(%d) invalid.\n",kind);
+        exit();
+    }
+    numvalue = 0;
+    numvalue = user_uint8(buffer);
+    for (i=1; i < width; i++) {
+        numvalue <<= 8;
+        numvalue  |= user_uint8(buffer + i);
+    }
+    if (kind == 3) {
+        value = sprintf("float:%d",numvalue);
+    }
+    else {
+        value = sprintf("%d",numvalue);
+    }
+    @QpidFramingDecodeStringSetLengthValue(_ret,width,value);
+    return _ret;
+}
+
+private function QpidFramingVariableWidthValueDecodeFromBuffer:string(buffer:long,buffersize:long,width:long)
+{
+    if (width != 1 && width != 2 && width != 4 && width != 8) {
+        printf("QpidFramingVariableWidthValueDecodeFromBuffer. width(%d) is invalid.\n",width);
+        exit();
+    }
+    if (buffersize < width) {
+        printf("QpidFramingVariableWidthValueDecodeFromBuffer overflow.\n");
+        exit();
+    }
+    len = user_uint8(buffer);
+    for (i=1; i < width; i++) {
+        len <<= 8;
+        len |=  user_uint8(buffer+i);
+    }
+    buffer     += width;
+    buffersize -= width;
+
+    if (buffersize < len) {
+        printf("QpidFramingVariableWidthValueDecodeFromBuffer overflow. buffersize:%d, len:%d\n",buffersize,len);
+        exit();
+    }
+    value = user_string_n(buffer,len);
+    buffer     += len;
+    buffersize -= len;
+
+    @QpidFramingDecodeStringSetLengthValue(_ret, (width+len), value);
+    return _ret;
+}
+
+private function QpidFramingUuidDataDecodeFromBuffer:string(cache:long, cachesize:long)
+{
+    if (cachesize < 16) {
+        printf("QpidFramingUuidDataDecodeFromBuffer overflow. %d\n",cachesize);
+        exit();
+    }
+    value = sprintf("%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x",
+            user_uint8(cache+0),user_uint8(cache+1),user_uint8(cache+2),user_uint8(cache+3),
+            user_uint8(cache+4),user_uint8(cache+5),user_uint8(cache+6),user_uint8(cache+7),
+            user_uint8(cache+8),user_uint8(cache+9),user_uint8(cache+10),user_uint8(cache+11),
+            user_uint8(cache+12),user_uint8(cache+13),user_uint8(cache+14),user_uint8(cache+15));
+    @QpidFramingDecodeStringSetLengthValue(_ret, 16, value);
+    return _ret;
+}
+
+private function QpidFramingFieldValueDataDecodeFromBuffer:string(cache:long,cachesize:long,type:long)
+{
+    typeOctet = type;
+    decodestring="";
+    if (typeOctet == 0xA8) {
+        decodestring = QpidFramingFieldTableDecodeFromBuffer(cache,cachesize);
+    } else if (typeOctet == 0xA9) {
+        decodestring = QpidFramingListDecodeFromBuffer(cache,cachesize);
+    } else if (typeOctet == 0xAA) {
+        decodestring = QpidFramingArrayDecodeFromBuffer(cache,cachesize);
+    } else if (typeOctet == 0x48) {
+        decodestring = QpidFramingUuidDataDecodeFromBuffer(cache,cachesize);
+    } else {
+        kind = typeOctet & 0xF;
+        lenType = typeOctet >> 4;
+        if (lenType == 0){
+            decodestring = QpidFramingNumericFixedWidthValueDecodeFromBuffer(cache,cachesize,1,kind);
+        } else if (lenType == 1){
+            decodestring = QpidFramingNumericFixedWidthValueDecodeFromBuffer(cache,cachesize,2,kind);
+        } else if (lenType == 2){
+            decodestring = QpidFramingNumericFixedWidthValueDecodeFromBuffer(cache,cachesize,4,kind);
+        } else if (lenType == 3){
+            decodestring = QpidFramingNumericFixedWidthValueDecodeFromBuffer(cache,cachesize,8,kind);
+        } else if (lenType == 4){
+            decodestring = QpidFramingFixedWidthValueDecodeFromBuffer(cache,cachesize,16);
+        } else if (lenType == 5){
+            decodestring = QpidFramingFixedWidthValueDecodeFromBuffer(cache,cachesize,32);
+        } else if (lenType == 6){
+            decodestring = QpidFramingFixedWidthValueDecodeFromBuffer(cache,cachesize,64);
+        } else if (lenType == 7){
+            decodestring = QpidFramingFixedWidthValueDecodeFromBuffer(cache,cachesize,128);
+        } else if (lenType == 8){
+            decodestring = QpidFramingVariableWidthValueDecodeFromBuffer(cache,cachesize,1);
+        } else if (lenType == 9){
+            decodestring = QpidFramingVariableWidthValueDecodeFromBuffer(cache,cachesize,2);
+        } else if (lenType == 0xA){
+            decodestring = QpidFramingVariableWidthValueDecodeFromBuffer(cache,cachesize,4);
+        } else if (lenType == 0xC){
+            decodestring = QpidFramingFixedWidthValueDecodeFromBuffer(cache,cachesize,5);
+        } else if (lenType == 0xD){
+            decodestring = QpidFramingFixedWidthValueDecodeFromBuffer(cache,cachesize,9);
+        } else if (lenType == 0xF){
+            decodestring = QpidFramingFixedWidthValueDecodeFromBuffer(cache,cachesize,0);
+        } else {
+            printf("QpidFramingFiledValueDataDecodeFromBuffer. Unknown field table value type: %d\n",typeOctet);
+            exit();
+        }
+    }
+    return decodestring;
+}
+
+
+
+private function QpidFramingListDecodeFromBuffer:string(cache:long, cachesize:long)
+{
+    decodestring = "[";
+    @QpidFramingBufferReadUint32(cache,cachesize,size);
+    cachesize = size;
+    if (size) {
+        @QpidFramingBufferReadUint32(cache,cachesize,count);        
+        for (i = 0; i < count; i++) {
+            if(i !=0 ) {
+                retstring .= ", ";
+            }
+            fieldvaluedecodestring  = QpidFramingFieldValueDecodeFromBuffer(cache,cachesize);
+            @QpidFramingDecodeStringSplitLengthValue(fieldvaluedecodestring, 
+                    fieldvaluelength, fieldvaluestring);
+            cache           += fieldvaluelength;
+            cachesize       -= fieldvaluelength;
+            decodestring    .= fieldvaluestring;
+        }    
+    }
+    if (cachesize != 0) {
+        printf("QpidFramingListDecodeFromBuffer failed. %d\n",cachesize);
+        exit();
+    }
+    decodestring .= "]";
+    @QpidFramingDecodeStringSetLengthValue(_ret,(size+4),decodestring);
+    return _ret;
+}
+
+private function QpidFramingArrayDecodeFromBuffer:string(cache:long, cachesize:long)
+{
+    decodedstring = "[";
+    @QpidFramingBufferReadUint32(cache,cachesize,size);
+    if (cachesize < size) {
+        printf("QpidFramingArrayDecodeFromBuffer overflow. %d %d\n",size,cachesize);
+        exit();
+    }
+    cachesize = size;
+    if (size) {
+        @QpidFramingBufferReadUint8(cache,cachesize,type);
+        @QpidFramingBufferReadUint32(cache,cachesize,count);
+
+        for (i = 0; i < count; i++) {
+            valuedecode = QpidFramingFieldValueDataDecodeFromBuffer(cache,cachesize,type);
+            @QpidFramingDecodeStringSplitLengthValue(valuedecode,valuelength,value);
+            cache       += valuelength;
+            cachesize   -= valuelength;
+            if (i != 0) decodedstring .= ", ";
+            decodedstring .= value;
+        }
+    }
+    if (cachesize != 0) {
+        printf("QpidFramingArrayDecodeFromBuffer failed. %d\n",cachesize);
+        exit();
+    }
+    decodedstring .= "]";
+    @QpidFramingDecodeStringSetLengthValue(retvalue,(size+4),decodedstring);
+    return retvalue;
+}
+
+private function QpidFramingFieldTableDecodeFromBuffer:string(cache:long,cachesize:long)
+{
+    decodestring    = "{";
+    @QpidFramingBufferReadUint32(cache,cachesize,len);
+    if (len > cachesize) {
+        printf("QpidFramingFieldTableDecodeFromBuffer overflow. len:%d, cachesize:%d\n",len,cachesize);
+        exit();
+    }
+    cachesize = len;
+    if (len) {
+        @QpidFramingBufferReadUint32(cache,cachesize,count);
+        for (i=0; i < count; i++) {
+            if (i != 0) {
+                decodestring .= ", ";
+            }
+            @QpidFramingBufferReadShortString(cache,cachesize,name);
+            fieldvaluedecodestring  = "";
+            fieldvaluelength        = 0;
+            fieldvaluestring        = "";
+            fieldvaluedecodestring = QpidFramingFieldValueDecodeFromBuffer(cache,cachesize);
+            @QpidFramingDecodeStringSplitLengthValue(fieldvaluedecodestring, fieldvaluelength,fieldvaluestring);
+            if (fieldvaluelength > cachesize) {
+                printf("QpidFramingFieldTableDecodeFromBuffer. fieldvaluelenth(%d) greater than %d.",fieldvaluelength,cachesize);
+                exit();
+            }
+            cache           += fieldvaluelength;
+            cachesize       -= fieldvaluelength;    
+            decodestring    .= sprintf("{%s:%s}",name,fieldvaluestring);
+            
+        }
+    }
+    if (cachesize != 0) {
+        printf("QpidFramingFieldTableDecodeFromBuffer failed.some data not be read. %d\n",cachesize);
+        exit();
+    }
+    decodestring .= "}";
+    @QpidFramingDecodeStringSetLengthValue(_ret,(len+4), decodestring);
+    return _ret;
+}
+
+private function QpidFramingFieldValueToString:string(cache:long, cachesize:long)
+{
+    decodestring = "";
+    length = 0;
+    value = "";
+    decodestring = QpidFramingFieldValueDecodeFromBuffer(cache,cachesize);
+    @QpidFramingDecodeStringSplitLengthValue(decodestring,length,value);
+    return value;
+}
+
+private function QpidFramingArrayBufferToString:string(cache:long, cachesize:long)
+{
+    decodestring = "";
+    length = 0;
+    value = "";
+    decodestring = QpidFramingArrayDecodeFromBuffer(cache,cachesize);
+    @QpidFramingDecodeStringSplitLengthValue(decodestring,length,value);
+    return value;
+}
+
+private function QpidFramingArrayBufferToString:string(cache:long, cachesize:long)
+{
+    decodestring = "";
+    length = 0;
+    value = "";
+    decodestring = QpidFramingArrayDecodeFromBuffer(cache,cachesize);
+    @QpidFramingDecodeStringSplitLengthValue(decodestring,length,value);
+    return value;
+}
+
+private function QpidFramingListBufferToString:string(cache:long, cachesize:long)
+{
+    decodestring = "";
+    length = 0;
+    value = "";
+    decodestring = QpidFramingListDecodeFromBuffer(cache,cachesize);
+    @QpidFramingDecodeStringSplitLengthValue(decodestring,length,value);
+    return value;
+}
+
+private function QpidFramingFieldTableBufferToString:string(cache:long, cachesize:long)
+{
+    decodestring = "";
+    length = 0;
+    value = "";
+    decodestring = QpidFramingFieldTableDecodeFromBuffer(cache,cachesize);
+    @QpidFramingDecodeStringSplitLengthValue(decodestring,length,value);
+    return value;
+}
+
+private function QpidFramingFieldTableMapToString:string(map:long)
+{
+    info = "";
+    node = StdMapFirstNode(map);
+    while(node) {
+        name = StdMapNodeGetKey(node);
+        value = StdMapNodeGetValue(node,8);
+        info .= sprintf(", {key:%s, value:%p}",
+                StdStringGet(name),user_long(value));
+        node  = StdMapNodeNextNode(map,node);
+    }
+    return info;   
+}
+
+function QpidFramingFieldTableToString:string(tbl:long)
+{
+    if (tbl) {
+        info = "{";
+        newBytes    = @cast(tbl,"_qpid_framing_FieldTable",@QpidSymsFile)->newBytes;
+        values      = &@cast(tbl,"_qpid_framing_FieldTable",@QpidSymsFile)->values;
+        cachedBytes = @cast(tbl,"_qpid_framing_FieldTable",@QpidSymsFile)->cachedBytes->px;
+        cachedSize  = @cast(tbl,"_qpid_framing_FieldTable",@QpidSymsFile)->cachedSize;
+        info .= sprintf("newBytes:%d",newBytes);
+        info .= sprintf(", values:{");
+        if (newBytes) {
+            info .= QpidFramingFieldTableBufferToString(cachedBytes,cachedSize);
+        } else {
+            info .= QpidFramingFieldTableMapToString(values);
+        }
+        info .= sprintf("}");
+        info .= sprintf("}");
+        return info;
+    }
+    return "{}";
+}
+function QpidFramingConnectionStartOkBodyToString:string(body:long)
+{
+    vtbl = ClassGetVTableName(body);
+    if (isinstr(vtbl,"ConnectionStartOkBody") == 0) {
+        printf("[error][QpidFramingConnectionStartOkBodyToString]\n");
+        exit();
+    }
+    clientProperties = &@cast(body,"_qpid_framing_ConnectionStartOkBody",@QpidSymsFile)->clientProperties;
+    mechanism        = &@cast(body,"_qpid_framing_ConnectionStartOkBody",@QpidSymsFile)->mechanism;
+    response         = &@cast(body,"_qpid_framing_ConnectionStartOkBody",@QpidSymsFile)->response;
+    locale           = &@cast(body,"_qpid_framing_ConnectionStartOkBody",@QpidSymsFile)->locale;
+    flags            = @cast(body,"_qpid_framing_ConnectionStartOkBody",@QpidSymsFile)->flags;
+
+    log = "{";
+    if (flags & (1 << 8))
+        log .= sprintf(" client-properties:%s,", QpidFramingFieldTableToString(clientProperties));
+    if (flags & (1 << 9))
+        log .= sprintf(" mechanism:%s,",StdStringGet(mechanism));
+    if (flags & (1 << 10))
+        log .= sprintf(" response:%s," ,StdStringGet(response));
+    if (flags & (1 << 11))
+        log .= sprintf(" locale:%s," ,StdStringGet(locale));
+    log .= "}";
+
+    return log;   
+}
+
+function QpidFramingAMQFrameToString:string(frame:long)
+{
+    if (frame) {
+        body = @cast(frame,"_qpid_framing_AMQFrame",@QpidSymsFile)->body->px; 
+        channel = @cast(frame,"_qpid_framing_AMQFrame",@QpidSymsFile)->channel;
+        subchannel = @cast(frame,"_qpid_framing_AMQFrame",@QpidSymsFile)->subchannel;
+        bof = @cast(frame,"_qpid_framing_AMQFrame",@QpidSymsFile)->bof;
+        eof = @cast(frame,"_qpid_framing_AMQFrame",@QpidSymsFile)->eof;
+        bos = @cast(frame,"_qpid_framing_AMQFrame",@QpidSymsFile)->bos;
+        eos = @cast(frame,"_qpid_framing_AMQFrame",@QpidSymsFile)->eos;
+        return sprintf("{channel:%d, subchannel:%d, bof.eof.bos.eos:%d.%d.%d.%d, body:%p<%s>}",
+                channel,subchannel,bof,eof,bos,eos,
+                body,ClassGetVTableName(body));
+    }
+    return "";
+}

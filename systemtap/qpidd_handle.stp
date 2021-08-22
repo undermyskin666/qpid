@@ -1,0 +1,21 @@
+
+@define QPIDD %("qpidd"%)
+@define QpiddModuleList %("/usr/local/qpid/sbin/qpidd:/usr/local/qpid/lib64/qpid/daemon/store.so:/usr/local/qpid/lib64/libqpidclient.so.2.0.0:/usr/local/qpid/lib64/libqpidmessaging.so.2.0.0:/usr/local/qpid/lib64/qpid/daemon/ha.so:/usr/local/qpid/lib64/libqpidtypes.so.1.0.0:/usr/local/qpid/lib64/libqpidcommon.so.2.0.0:/usr/local/qpid/lib64/libqpidbroker.so.2.0.0"%)
+@define QpidSymsFile %("/github/qpid/systemtap/symbols/lib64/QpidSymbols"%)
+@define LibQpidCommon %("/usr/local/qpid/lib64/libqpidcommon.so.2.0.0"%)
+@define LibQpidBroker %("/usr/local/qpid/lib64/libqpidbroker.so"%)
+
+
+probe process(@QPIDD).library(@LibQpidBroker).function("_ZN4qpid6broker17ConnectionHandler6handleERNS_7framing8AMQFrameE")
+{
+    QLogPrefix("qpid::broker::ConnectionHandler::handle");
+    QLog(sprintf("body:%s",QpidFramingAMQFrameToString($frame)));
+    QLogEnd();
+}
+
+probe process(@QPIDD).library(@LibQpidBroker).function("_ZN4qpid6broker17ConnectionHandler7Handler7startOkERKNS_7framing21ConnectionStartOkBodyE")
+{
+    QLogPrefix("qpid::broker::ConnectionHandler::Handler::startOk");
+    QLog(sprintf("ConnectStartOkBody:%s\n",QpidFramingConnectionStartOkBodyToString($body)));
+    QLogEnd();
+}

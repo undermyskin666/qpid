@@ -1,0 +1,59 @@
+
+@define QPIDD %("qpidd"%)
+@define QpiddModuleList %("/usr/local/qpid/sbin/qpidd:/usr/local/qpid/lib64/qpid/daemon/store.so:/usr/local/qpid/lib64/libqpidclient.so.2.0.0:/usr/local/qpid/lib64/libqpidmessaging.so.2.0.0:/usr/local/qpid/lib64/qpid/daemon/ha.so:/usr/local/qpid/lib64/libqpidtypes.so.1.0.0:/usr/local/qpid/lib64/libqpidcommon.so.2.0.0:/usr/local/qpid/lib64/libqpidbroker.so.2.0.0"%)
+@define QpidSymsFile %("/github/qpid/systemtap/symbols/lib64/QpidSymbols"%)
+@define LibQpidCommon %("/usr/local/qpid/lib64/libqpidcommon.so.2.0.0"%)
+@define LibQpidBroker %("/usr/local/qpid/lib64/libqpidbroker.so"%)
+
+
+
+
+probe process(@QPIDD).library(@LibQpidBroker).function("qpid::amqp_0_10::Connection::decode")
+{
+    QLogPrefix("qpid::amqp_0_10::Connection::decode");
+    QLog(sprintf("identifier:'%s', initialized=%d, buffer:%p, size:%d",
+                StdStringGet(&$this->identifier), $this->initialized,
+                $buffer, $size));
+    if (!$this->initialized) {
+        QLog(sprintf(", connection:%p<%s>",
+                    $this->connection->_M_ptr,ClassGetVTableName($this->connection->_M_ptr)));
+    }
+    QLogEnd();
+}
+
+
+probe process(@QPIDD).library(@LibQpidBroker).function("qpid::broker::amqp_0_10::Connection::received")
+{
+    QLogPrefix("qpid::broker::amqp_0_10::Connection::received");
+    QLog(sprintf("frame:%p<%s>, connectionhandler:%p<%s>, link:%d",
+                $frame,ClassGetVTableName($frame),
+                &$this->adapter,ClassGetVTableName(&$this->adapter),
+                $this->link));
+    QLogEnd();
+}
+
+probe process(@QPIDD).library(@LibQpidBroker).function("_ZN4qpid6broker17ConnectionHandler6handleERNS_7framing8AMQFrameE")
+{
+    QLogPrefix("qpid::broker::ConnectionHandler::handle");
+    //QLog(sprintf("amqpFrame:{channel:%d, subchannel:%d, bof.eof.bos.eos:%d.%d.%d.%d, body:%p",
+    //        $frame->channel,$frame->subchannel,
+    //        $frame->bof,$frame->eof,$frame->bos, $frame->eos,
+    //        $frame->body));
+    QLog(sprintf("body:%s",QpidFramingAMQFrameToString($frame)));
+    QLogEnd();
+}
+
+probe process(@QPIDD).library(@LibQpidBroker).function("qpid::broker::amqp_0_10::Connection::closeChannel")
+{
+    QLogPrefix("qpid::broker::amqp_0_10::Connection::closeChannel");
+    QLog(sprintf("channel:%d",$id));
+    QLogEnd();
+}
+
+probe process(@QPIDD).library(@LibQpidBroker).function("qpid::broker::amqp_0_10::Connection::getChannel").return
+{
+    QLogPrefix("qpid::broker::amqp_0_10::Connection::getChannel");
+    QLog(sprintf("channel:%d, sessionhandler:%p<%s>",@entry($id),returnval(), ClassGetVTableName(returnval())));
+    QLogEnd();
+}
+

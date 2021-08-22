@@ -42,6 +42,13 @@ public:
     virtual ~_qpid_sys_TransportConnector();
 };
 
+struct _qpid_sys_SocketTransportOptions {
+    bool tcpNoDelay;
+    bool nodict;
+    uint32_t maxNegotiateTime;
+    ~_qpid_sys_SocketTransportOptions();
+};
+
 struct _qpid_broker_Broker_TransportInfo
 {
         boost::shared_ptr<_qpid_sys_TransportAcceptor> acceptor;
@@ -259,17 +266,28 @@ class _qpid_sys_ConnectionCodec : public _qpid_sys_Codec {
 
 typedef boost::function3<void, boost::shared_ptr<_qpid_sys_Poller>, const _qpid_sys_Socket&, _qpid_sys_ConnectionCodec::Factory*> _qpid_sys_EstablishedCallback;
 
-struct _qpid_sys_SocketTransportOptions {
-    bool tcpNoDelay;
-    bool nodict;
-    uint32_t maxNegotiateTime;
-};
 class _qpid_sys_SocketAcceptor : public _qpid_sys_TransportAcceptor {
     boost::ptr_vector<_qpid_sys_Socket> listeners;
     boost::ptr_vector<_qpid_sys_AsynchAcceptor> acceptors;
     _qpid_sys_Timer& timer;
     _qpid_sys_SocketTransportOptions options;
     const _qpid_sys_EstablishedCallback established;
+};
+class _qpid_sys_SecurityLayer : public _qpid_sys_Codec
+{
+  public:
+    int ssf;
+
+    virtual ~_qpid_sys_SecurityLayer() {}
+};
+
+class _qpid_sys_SecureConnection : public _qpid_sys_ConnectionCodec
+{
+    std::auto_ptr<_qpid_sys_ConnectionCodec> codec;
+    std::auto_ptr<_qpid_sys_SecurityLayer> securityLayer;
+    bool secured;
+
+    virtual ~_qpid_sys_SecureConnection();
 };
 
 #endif

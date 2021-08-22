@@ -20,11 +20,31 @@ function StdMapSize:long(map:long)
     struct std_map* stdMap = (struct std_map*)STAP_ARG_map;
     STAP_RETVALUE = (long)stdMap->_M_node_count;
 %}
+
+%{
+#define StdMapNodeIsNull(map,node) (!(node && (node != &map->_M_header)))
+
+%}
 function StdMapFirstNode:long(map:long)
 %{
     struct std_map* stdMap = (struct std_map*)STAP_ARG_map;
-    STAP_RETVALUE = (long)stdMap->_M_header._M_left;
+    struct std_map_node_base* node = stdMap->_M_header._M_left;
+    
+    if (StdMapNodeIsNull(stdMap,node)) 
+    {
+        STAP_RETVALUE = 0;
+        return;
+    }
+
+    do {
+        if (StdMapNodeIsNull(stdMap,node->_M_left)) {
+            STAP_RETVALUE = (long)node;
+            return;
+        }
+        node = node->_M_left;
+    }while(1);
 %}
+
 function StdMapNodeHasNext:long(map:long,node:long)
 %{
     STAP_RETVALUE = StdMapNodeNextNode(STAP_ARG_map, STAP_ARG_node);
@@ -34,6 +54,11 @@ function StdMapNodeNextNode:long(map:long,node:long)
     struct std_map* stdMap = (struct std_map*)STAP_ARG_map;
     struct std_map_node_base* mapNode = (struct std_map_node_base*)STAP_ARG_node;
     struct std_map_node_base* nextNode = NULL;
+    if (StdMapNodeIsNull(stdMap,mapNode)) {
+        STAP_RETVALUE = 0;
+        return;
+    }
+
     if (mapNode && mapNode != stdMap->_M_header._M_right) {
         if (mapNode->_M_right) {
             nextNode = mapNode->_M_right;
